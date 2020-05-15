@@ -15,9 +15,16 @@
 typedef struct 
 {
 	char **tab_ip;
-	int   nbr_ip;
+	int  nbr_ip;
 	
 } DATA;
+
+typedef struct 
+{
+	pthread_mutex_t *mut;
+	char *request;
+	
+} ARG_T;
 
 int initData(DATA *data, const char *path)
 {
@@ -38,8 +45,8 @@ int initData(DATA *data, const char *path)
 	}
 
 	data -> tab_ip = malloc(data -> nbr_ip * sizeof(char*));
-	for(int cmptIp = 0; cmptIp < data -> nbr_ip; cmptIp++)
-		data -> tab_ip[cmptIp] = malloc(SIZE_IP * sizeof(char));
+	for(int cntIp = 0; cntIp < data -> nbr_ip; cntIp++)
+		data -> tab_ip[cntIp] = malloc(SIZE_IP * sizeof(char));
 		
 	SE_fermeture(file);
 
@@ -55,15 +62,50 @@ int readFile(DATA *data, const char *path)
 		return 1;
 	}
 
-	for(int cmptIp = 0; cmptIp < data -> nbr_ip; cmptIp++)
+	for(int cntIp = 0; cntIp < data->nbr_ip; cntIp++)
 	{
-		SE_lectureChaine (file, data -> tab_ip[cmptIp], SIZE_IP+1);
-		printf("ip lecture: %s", data -> tab_ip[cmptIp]);
+		SE_lectureChaine (file, data->tab_ip[cntIp], SIZE_IP+1);
+		printf("ip lecture: %s", data->tab_ip[cntIp]);
 	}
 
 	SE_fermeture(file);
 
 	return 0;
+}
+
+void * pingsParallel (void * arg)
+{
+	ARG_T *at = (ARG_T *) arg;
+
+	char *param = "ping -c 4";
+	size_t fullSize = strlen( param ) + 1 +  strlen( at->request ) + 1;;
+	char *config = (char *) malloc( fullSize );
+	strcat( strcat( strcpy( config, param ), " " ), at->request );
+	printf("requete : %s", config);
+	system(config);
+
+	return NULL;
+}
+
+void initThread(DATA data)
+{
+	pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+	pthread_t * tid;
+	
+	ARG_T *at;
+		
+	at  = malloc(data.nbr_ip * sizeof(ARG_T));
+	tid = malloc(data.nbr_ip * sizeof(pthread_t) );
+	
+	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
+	{
+		at[cnt].mut = &mut;
+		at[cnt].request = data.tab_ip[cnt];
+		pthread_create(tid + cnt, NULL, pingsParallel, at + cnt);
+	}
+
+	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
+		pthread_join(tid[cnt], NULL);
 }
 
 int main(int argc, char ** argv)
@@ -75,20 +117,10 @@ int main(int argc, char ** argv)
 
 	readFile(&data, "data.cfg");
 	
-	for(int cmpt = 0; cmpt < data.nbr_ip; cmpt++)
-		printf("ip : %s", data.tab_ip[cmpt]);
+	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
+		printf("ip : %s", data.tab_ip[cnt]);
 
-	char *param = "ping -c 4";
-
-	size_t fullSize = strlen( param ) + 1 +  strlen( data.tab_ip[0] ) + 1;;
-
-	char *config = (char *) malloc( fullSize );
-
-	strcat( strcat( strcpy( config, param ), " " ), data.tab_ip[0] );
-
-	printf("requete : %s", config);
-	system(config);
-
+	initThread(data);
 
 	return 0;
 }
