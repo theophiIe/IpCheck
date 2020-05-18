@@ -106,6 +106,8 @@ char * initRequest(char *ip)
 
 	strcat( strcat( strcat( strcpy( request, param), ip), rdctF), nameF);
 
+	free(nameF);
+
 	return request;
 }
 
@@ -113,7 +115,13 @@ void * pingsParallel (void * arg)
 {
 	ARG_T *at = (ARG_T *) arg;
 	
-	system( initRequest( initIP( at->request ) ) );
+	char *ip = initIP( at->request );
+	char *request = initRequest( ip );
+
+	system( request );
+
+	free(request);
+	free(ip);
 
 	return NULL;
 }
@@ -137,6 +145,14 @@ void initThread(DATA data)
 
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 		pthread_join(tid[cnt], NULL);
+
+	free(at);
+	free(tid);
+
+	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
+		free(data.tab_ip[cnt]);
+	free(data.tab_ip);
+
 }
 
 int main(int argc, char ** argv)
