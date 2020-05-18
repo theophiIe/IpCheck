@@ -120,53 +120,53 @@ void * pingsParallel (void * arg)
 
 	system( request );
 
-	free(request);
+	//free(request);
 	free(ip);
 
 	return NULL;
 }
 
-int copy (const char * chemin1, const char * chemin2) {
-	SE_FICHIER fic1, fic2;
+int print (const char * chemin)
+{
+	SE_FICHIER fic;
 	char c;
 
-	fic1 = SE_ouverture (chemin1, O_RDONLY);
-	fic2 = SE_ouverture (chemin2, O_CREAT | O_WRONLY);
+	fic = SE_ouverture (chemin, O_RDONLY);
 
-	if (fic1.descripteur == -1 || fic2.descripteur == -1)
+	if (fic.descripteur == -1)
 		return -1;
 
-	while (SE_lectureCaractere (fic1, &c) > 0)
-		SE_ecritureCaractere (fic2, c);
+	printf("\n");
 
-	SE_fermeture (fic1);
-	SE_fermeture (fic2);
+	while (SE_lectureCaractere (fic, &c) > 0)
+		printf ("%c", c);
+
+	SE_fermeture (fic);
+
+	printf("\n");
 
 	return 0;
 }
 
-void * copyFile (void * arg)
+void * printFile (void * arg)
 {
 	ARG_T *at = (ARG_T *) arg;
 	
 	char *ip = initIP( at->request );
-	char *nameF = initNameFile(ip);
 
 	pthread_mutex_lock(at -> mut);
-	copy (nameF, "results.txt");
-	pthread_mutex_unlock(at -> mut);
-
-	unlink(nameF);
-
+	
+	print(ip);
+	unlink(ip);
 	free(ip);
-	free(nameF);
+	
+	pthread_mutex_unlock(at -> mut);
 
 	return NULL;
 }
 
-void initThread(DATA data)
+void ThreadCheckIP(DATA data)
 {
-	pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 	pthread_t * tid;
 	
 	ARG_T *at;
@@ -184,25 +184,32 @@ void initThread(DATA data)
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 		pthread_join(tid[cnt], NULL);
 
-	// Thread for copy file
+	free(at);
+	free(tid);
+}
+
+void ThreadPrintFile(DATA data)
+{
+	pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
+	pthread_t * tid;
+	
+	ARG_T *at;
+		
+	at  = malloc(data.nbr_ip * sizeof(ARG_T));
+	tid = malloc(data.nbr_ip * sizeof(pthread_t) );
+
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 	{
 		at[cnt].mut = &mut;
 		at[cnt].request = data.tab_ip[cnt];
-		pthread_create(tid + cnt, NULL, copyFile, at + cnt);
+		pthread_create(tid + cnt, NULL, printFile, at + cnt);
 	}
 
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 		pthread_join(tid[cnt], NULL);
 
-
 	free(at);
 	free(tid);
-
-	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
-		free(data.tab_ip[cnt]);
-	free(data.tab_ip);
-
 }
 
 int main(int argc, char ** argv)
@@ -217,7 +224,12 @@ int main(int argc, char ** argv)
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 		printf("ip : %s", data.tab_ip[cnt]);
 
-	initThread(data);
+	ThreadCheckIP(data);
+	ThreadPrintFile(data);
+	
+	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
+		free(data.tab_ip[cnt]);
+	free(data.tab_ip);
 
 	return 0;
 }
