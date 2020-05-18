@@ -12,4 +12,5 @@ valgrind: compile
 
 clean:
 	rm -f main
+	rm -f *.txt
 	ls
