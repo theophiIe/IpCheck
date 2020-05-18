@@ -8,7 +8,7 @@ compile: clean
 	$(CC) $(CFLAGS) main.c -L. -liof -o main
 
 valgrind: compile
-	valgrind ./main
+	valgrind --leak-check=full -v ./main
 
 clean:
 	rm -f main
