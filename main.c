@@ -78,11 +78,28 @@ void * pingsParallel (void * arg)
 	ARG_T *at = (ARG_T *) arg;
 
 	char *param = "ping -c 4";
-	size_t fullSize = strlen( param ) + 1 +  strlen( at->request ) + 1;;
+	char *sortie = "> test1.txt";
+
+	size_t sizeIp = strlen(at->request) - 1;
+	char *ip = (char *) malloc(sizeIp);
+
+	strncpy( ip, at->request, strlen(at->request)-1);
+
+	printf("ip : %s\n", ip);
+
+	size_t fullSize = strlen( param ) + 1 + strlen( ip ) + 1 + strlen( sortie ) + 1;
 	char *config = (char *) malloc( fullSize );
-	strcat( strcat( strcpy( config, param ), " " ), at->request );
-	printf("requete : %s", config);
+	strcat( strcat( strcpy( config, param ), " " ), ip );
+	strcat( strcat( config, " "), sortie);
+
+	printf("requete : %s\n", config);
+	
+	pthread_mutex_lock(at -> mut);
 	system(config);
+	pthread_mutex_unlock(at -> mut);
+	
+	free(config);
+	free(ip);
 
 	return NULL;
 }
