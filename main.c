@@ -73,33 +73,47 @@ int readFile(DATA *data, const char *path)
 	return 0;
 }
 
+char *initIP(char *ip)
+{
+	size_t size = strlen(ip) - 1;
+	char *NewIp = (char *) malloc(size);
+
+	strncpy( NewIp, ip, strlen(ip) - 1);
+
+	return NewIp;
+}
+
+char * initNameFile(char* ip)
+{
+	char *extension = ".txt";
+
+	size_t size = strlen(ip) + strlen(extension);
+	char *nameFile = (char *) malloc(size);
+
+	strcat(strcpy( nameFile, ip), extension);
+
+	return nameFile;
+}
+
+char * initRequest(char *ip)
+{
+	char *param = "ping -c 4 ";
+	char *rdctF = " > ";
+	char *nameF = initNameFile(ip);
+
+	size_t size = strlen(ip) + strlen(rdctF) + strlen(nameF);
+	char *request = (char *) malloc(size);
+
+	strcat( strcat( strcat( strcpy( request, param), ip), rdctF), nameF);
+
+	return request;
+}
+
 void * pingsParallel (void * arg)
 {
 	ARG_T *at = (ARG_T *) arg;
-
-	char *param = "ping -c 4";
-	char *sortie = "> test1.txt";
-
-	size_t sizeIp = strlen(at->request) - 1;
-	char *ip = (char *) malloc(sizeIp);
-
-	strncpy( ip, at->request, strlen(at->request)-1);
-
-	printf("ip : %s\n", ip);
-
-	size_t fullSize = strlen( param ) + 1 + strlen( ip ) + 1 + strlen( sortie ) + 1;
-	char *config = (char *) malloc( fullSize );
-	strcat( strcat( strcpy( config, param ), " " ), ip );
-	strcat( strcat( config, " "), sortie);
-
-	printf("requete : %s\n", config);
 	
-	pthread_mutex_lock(at -> mut);
-	system(config);
-	pthread_mutex_unlock(at -> mut);
-	
-	free(config);
-	free(ip);
+	system( initRequest( initIP( at->request ) ) );
 
 	return NULL;
 }
