@@ -126,6 +126,44 @@ void * pingsParallel (void * arg)
 	return NULL;
 }
 
+int copy (const char * chemin1, const char * chemin2) {
+	SE_FICHIER fic1, fic2;
+	char c;
+
+	fic1 = SE_ouverture (chemin1, O_RDONLY);
+	fic2 = SE_ouverture (chemin2, O_CREAT | O_WRONLY);
+
+	if (fic1.descripteur == -1 || fic2.descripteur == -1)
+		return -1;
+
+	while (SE_lectureCaractere (fic1, &c) > 0)
+		SE_ecritureCaractere (fic2, c);
+
+	SE_fermeture (fic1);
+	SE_fermeture (fic2);
+
+	return 0;
+}
+
+void * copyFile (void * arg)
+{
+	ARG_T *at = (ARG_T *) arg;
+	
+	char *ip = initIP( at->request );
+	char *nameF = initNameFile(ip);
+
+	pthread_mutex_lock(at -> mut);
+	copy (nameF, "results.txt");
+	pthread_mutex_unlock(at -> mut);
+
+	unlink(nameF);
+
+	free(ip);
+	free(nameF);
+
+	return NULL;
+}
+
 void initThread(DATA data)
 {
 	pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
@@ -136,15 +174,27 @@ void initThread(DATA data)
 	at  = malloc(data.nbr_ip * sizeof(ARG_T));
 	tid = malloc(data.nbr_ip * sizeof(pthread_t) );
 	
+	//Thread for ping
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 	{
-		at[cnt].mut = &mut;
 		at[cnt].request = data.tab_ip[cnt];
 		pthread_create(tid + cnt, NULL, pingsParallel, at + cnt);
 	}
 
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 		pthread_join(tid[cnt], NULL);
+
+	// Thread for copy file
+	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
+	{
+		at[cnt].mut = &mut;
+		at[cnt].request = data.tab_ip[cnt];
+		pthread_create(tid + cnt, NULL, copyFile, at + cnt);
+	}
+
+	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
+		pthread_join(tid[cnt], NULL);
+
 
 	free(at);
 	free(tid);
