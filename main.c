@@ -1,14 +1,14 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <string.h>
-
+#include <pthread.h>
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
 
-#include "se_fichier.h"
+#include "read.h"
 
 #define SIZE_IP 15
 
@@ -21,24 +21,34 @@ typedef struct
 
 typedef struct 
 {
-	pthread_mutex_t *mut;
-	char *request;
+	char *ip;
+	char *rqst;
+	char *fullRqst;
 	
-} ARG_T;
+} ARG_T_P;
+
+typedef struct 
+{
+	pthread_mutex_t *mut;
+	char *path;
+	char *rqst;
+	char *ip;
+	
+} ARG_T_R;
 
 int initData(DATA *data, const char *path)
 {
 	char c;
 	data -> nbr_ip = 0;
 
-	SE_FICHIER file = SE_ouverture (path, O_RDONLY);
+	OI_FILE file = OI_open (path, O_RDONLY);
 	if (file.descripteur < 0) 
 	{
 		fprintf(stderr, "\nERR: opening config file\n");
 		return 1;
 	}
 
-	while(SE_lectureCaractere (file, &c) > 0)
+	while(OI_readChar (file, &c) > 0)
 	{
 		if(c == '\n')
 			data -> nbr_ip += 1;
@@ -46,16 +56,18 @@ int initData(DATA *data, const char *path)
 
 	data -> tab_ip = malloc(data -> nbr_ip * sizeof(char*));
 	for(int cntIp = 0; cntIp < data -> nbr_ip; cntIp++)
-		data -> tab_ip[cntIp] = malloc(SIZE_IP * sizeof(char));
+		data -> tab_ip[cntIp] = malloc((SIZE_IP + 2) * sizeof(char)); //Check size of malloc ERR : fail read in file config (ip + \n + \0) -> (15 + 1 + 1)
 		
-	SE_fermeture(file);
+	OI_close(file);
 
 	return 0;
 }
 
 int readFile(DATA *data, const char *path)
 {
-	SE_FICHIER file = SE_ouverture (path, O_RDONLY);
+	int valRD;
+
+	OI_FILE file = OI_open (path, O_RDONLY);
 	if (file.descripteur < 0) 
 	{
 		fprintf(stderr, "\nERR: opening config file\n");
@@ -64,103 +76,143 @@ int readFile(DATA *data, const char *path)
 
 	for(int cntIp = 0; cntIp < data->nbr_ip; cntIp++)
 	{
-		SE_lectureChaine (file, data->tab_ip[cntIp], SIZE_IP+1);
-		printf("ip lecture: %s", data->tab_ip[cntIp]);
+		valRD = OI_readStr (file, data->tab_ip[cntIp], SIZE_IP + 1);
+		if (valRD < 0) 
+		{
+			fprintf(stderr, "\nERR: read in data file\n");
+			OI_close(file);
+			return 1;
+		}
 	}
 
-	SE_fermeture(file);
+	OI_close(file);
 
 	return 0;
 }
 
 char *initIP(char *ip)
 {
+	char *newIp = NULL;
+
 	size_t size = strlen(ip) - 1;
-	char *NewIp = (char *) malloc(size);
+	newIp = malloc(size * sizeof(char));
+	if( !newIp ) 
+	{
+		printf("initIP: wrong alloc 'newIp'\n");
+		return NULL;
+	}
 
-	strncpy( NewIp, ip, strlen(ip) - 1);
+	strncpy( newIp, ip, size);
 
-	return NewIp;
+	return newIp;
 }
 
 char * initNameFile(char* ip)
 {
+	char *nameFile = NULL;
 	char *extension = ".txt";
 
-	size_t size = strlen(ip) + strlen(extension);
-	char *nameFile = (char *) malloc(size);
+	size_t size = strlen(ip) + strlen(extension) + 1;
+	nameFile = malloc(size * sizeof(char));
+	if( !nameFile ) 
+	{
+		printf("initNameFile: wrong alloc 'nameFile'\n");
+		return NULL;
+	}
 
 	strcat(strcpy( nameFile, ip), extension);
 
 	return nameFile;
 }
 
-char * initRequest(char *ip)
+char * initrqst(char *ip)
 {
+	char *rqst  = NULL;
 	char *param = "ping -c 4 ";
 	char *rdctF = " > ";
 	char *nameF = initNameFile(ip);
 
-	size_t size = strlen(ip) + strlen(rdctF) + strlen(nameF);
-	char *request = (char *) malloc(size);
+	size_t size = strlen(ip) + strlen(rdctF) + strlen(nameF) + strlen(param) + 1;
+	rqst = malloc(size * sizeof(char));
+	if( !rqst ) 
+	{
+		printf("initrqst: wrong alloc 'rqst'\n");
+		return NULL;
+	}
 
-	strcat( strcat( strcat( strcpy( request, param), ip), rdctF), nameF);
+	strcat( strcat( strcat( strcpy( rqst, param), ip), rdctF), nameF);
 
 	free(nameF);
 
-	return request;
+	return rqst;
 }
 
 void * pingsParallel (void * arg)
 {
-	ARG_T *at = (ARG_T *) arg;
+	ARG_T_P *at = (ARG_T_P *) arg;
 	
-	char *ip = initIP( at->request );
-	char *request = initRequest( ip );
+	int sysVal = -1;
 
-	system( request );
+	at->ip 		 = initIP( at->rqst );
+	at->fullRqst = initrqst( at->ip );
 
-	//free(request);
-	free(ip);
+	printf("%s\n", at->fullRqst);
+
+	sysVal = system( at->fullRqst );
+	if(sysVal < 0)
+		printf("ERR : ping request fail\n");
+
+	printf("%ld request : %s\n", pthread_self(), at->fullRqst);
+
+	free(at->ip);
+	free(at->fullRqst);
 
 	return NULL;
 }
 
-int print (const char * chemin)
+int print (const char * path)
 {
-	SE_FICHIER fic;
 	char c;
 
-	fic = SE_ouverture (chemin, O_RDONLY);
+	OI_FILE file = OI_open (path, O_RDONLY);
+	if (file.descripteur < 0) 
+	{
+		fprintf(stderr, "\nERR: opening config ip file\n");
+		return 1;
+	}
 
-	if (fic.descripteur == -1)
+	if (file.descripteur == -1)
 		return -1;
 
 	printf("\n");
 
-	while (SE_lectureCaractere (fic, &c) > 0)
+	while (OI_readChar (file, &c) > 0)
 		printf ("%c", c);
 
-	SE_fermeture (fic);
-
 	printf("\n");
-
+	
+	OI_close (file);
+	OI_delete (path);
+	
 	return 0;
 }
 
 void * printFile (void * arg)
 {
-	ARG_T *at = (ARG_T *) arg;
+	ARG_T_R *at = (ARG_T_R *) arg;
 	
-	char *ip = initIP( at->request );
+	at -> ip   = initIP( at->rqst );
+	at -> path = initNameFile(at -> ip);
 
 	pthread_mutex_lock(at -> mut);
-	
-	print(ip);
-	unlink(ip);
-	free(ip);
-	
+
+	print(at -> path);
+
+	free(at -> ip);
+	free(at -> path);
+
 	pthread_mutex_unlock(at -> mut);
+	
 
 	return NULL;
 }
@@ -169,15 +221,17 @@ void ThreadCheckIP(DATA data)
 {
 	pthread_t * tid;
 	
-	ARG_T *at;
+	ARG_T_P *at;
 		
-	at  = malloc(data.nbr_ip * sizeof(ARG_T));
+	at  = malloc(data.nbr_ip * sizeof(ARG_T_P));
 	tid = malloc(data.nbr_ip * sizeof(pthread_t) );
 	
 	//Thread for ping
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 	{
-		at[cnt].request = data.tab_ip[cnt];
+		at[cnt].ip   	 = NULL;
+		at[cnt].fullRqst = NULL;
+		at[cnt].rqst 	 = data.tab_ip[cnt];
 		pthread_create(tid + cnt, NULL, pingsParallel, at + cnt);
 	}
 
@@ -193,15 +247,17 @@ void ThreadPrintFile(DATA data)
 	pthread_mutex_t mut = PTHREAD_MUTEX_INITIALIZER;
 	pthread_t * tid;
 	
-	ARG_T *at;
+	ARG_T_R *at;
 		
-	at  = malloc(data.nbr_ip * sizeof(ARG_T));
+	at  = malloc(data.nbr_ip * sizeof(ARG_T_R));
 	tid = malloc(data.nbr_ip * sizeof(pthread_t) );
 
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 	{
-		at[cnt].mut = &mut;
-		at[cnt].request = data.tab_ip[cnt];
+		at[cnt].ip   = NULL;
+		at[cnt].path = NULL;
+		at[cnt].mut  = &mut;
+		at[cnt].rqst = data.tab_ip[cnt];
 		pthread_create(tid + cnt, NULL, printFile, at + cnt);
 	}
 
@@ -217,12 +273,14 @@ int main(int argc, char ** argv)
 	DATA data;
 
 	initData(&data, "data.cfg");
-	printf("nombre de ligne : %d\n", data.nbr_ip);
+	printf("Ip number : %d\n\n", data.nbr_ip);
 
 	readFile(&data, "data.cfg");
 	
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 		printf("ip : %s", data.tab_ip[cnt]);
+
+	printf("\nPing rqst being processed... \n");
 
 	ThreadCheckIP(data);
 	ThreadPrintFile(data);
