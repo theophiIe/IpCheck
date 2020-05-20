@@ -29,10 +29,10 @@ typedef struct
 
 typedef struct 
 {
-	pthread_mutex_t *mut;
+	char *ip;
 	char *path;
 	char *rqst;
-	char *ip;
+	pthread_mutex_t *mut;
 	
 } ARG_T_R;
 
@@ -94,15 +94,15 @@ char *initIP(char *ip)
 {
 	char *newIp = NULL;
 
-	size_t size = strlen(ip) - 1;
-	newIp = malloc(size * sizeof(char));
+	size_t size = strlen(ip);
+	newIp = calloc(size , sizeof(char));
 	if( !newIp ) 
 	{
 		printf("initIP: wrong alloc 'newIp'\n");
 		return NULL;
 	}
 
-	strncpy( newIp, ip, size);
+	strncpy( newIp, ip, size - 1);
 
 	return newIp;
 }
@@ -113,6 +113,7 @@ char * initNameFile(char* ip)
 	char *extension = ".txt";
 
 	size_t size = strlen(ip) + strlen(extension) + 1;
+	
 	nameFile = malloc(size * sizeof(char));
 	if( !nameFile ) 
 	{
@@ -120,7 +121,8 @@ char * initNameFile(char* ip)
 		return NULL;
 	}
 
-	strcat(strcpy( nameFile, ip), extension);
+	strcpy(nameFile, ip);
+	strcat(nameFile, extension);
 
 	return nameFile;
 }
@@ -128,11 +130,19 @@ char * initNameFile(char* ip)
 char * initrqst(char *ip)
 {
 	char *rqst  = NULL;
+	char *nameF = NULL;
 	char *param = "ping -c 4 ";
 	char *rdctF = " > ";
-	char *nameF = initNameFile(ip);
+
+	nameF =	initNameFile(ip);
+	if( !nameF ) 
+	{
+		printf("initrqst: wrong alloc 'nameF'\n");
+		return NULL;
+	}
 
 	size_t size = strlen(ip) + strlen(rdctF) + strlen(nameF) + strlen(param) + 1;
+	
 	rqst = malloc(size * sizeof(char));
 	if( !rqst ) 
 	{
@@ -140,7 +150,10 @@ char * initrqst(char *ip)
 		return NULL;
 	}
 
-	strcat( strcat( strcat( strcpy( rqst, param), ip), rdctF), nameF);
+	strcpy(rqst, param);
+	strcat(rqst, ip);
+	strcat(rqst, rdctF);
+	strcat(rqst, nameF);
 
 	free(nameF);
 
@@ -205,15 +218,11 @@ void * printFile (void * arg)
 	at -> path = initNameFile(at -> ip);
 
 	pthread_mutex_lock(at -> mut);
-
 	print(at -> path);
-
 	free(at -> ip);
 	free(at -> path);
-
 	pthread_mutex_unlock(at -> mut);
 	
-
 	return NULL;
 }
 
@@ -226,7 +235,6 @@ void ThreadCheckIP(DATA data)
 	at  = malloc(data.nbr_ip * sizeof(ARG_T_P));
 	tid = malloc(data.nbr_ip * sizeof(pthread_t) );
 	
-	//Thread for ping
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 	{
 		at[cnt].ip   	 = NULL;
