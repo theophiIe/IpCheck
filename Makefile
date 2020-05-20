@@ -1,16 +1,22 @@
 CC = gcc
-CFLAGS = -Wall -g -pthread
+EXEC = main
+CFLAGS = -Wall -Wextra -Walloc-zero -g -pthread -O2
+SRC = $(wildcard *.c)
+OBJ = $(SRC:.c=.o)
 
-run: compile
-	./main
+all : clean compile
+	./$(EXEC)
 
-compile: clean
-	$(CC) $(CFLAGS) main.c -L. -liof -o main
+%.o : %.c
+	$(CC) -o $@ -c $<
+
+compile : $(OBJ)
+	$(CC) $(CFLAGS) -o $(EXEC) $^
 
 valgrind: compile
-	valgrind --leak-check=full -v ./main
+	valgrind --leak-check=full -v ./$(EXEC)
 
 clean:
-	rm -f main
-	rm -f *.txt
+	rm -rf $(EXEC)
+	rm -rf *.txt
 	ls
