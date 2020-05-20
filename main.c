@@ -56,7 +56,7 @@ int initData(DATA *data, const char *path)
 
 	data -> tab_ip = malloc(data -> nbr_ip * sizeof(char*));
 	for(int cntIp = 0; cntIp < data -> nbr_ip; cntIp++)
-		data -> tab_ip[cntIp] = malloc((SIZE_IP + 2) * sizeof(char)); //Check size of malloc ERR : fail read in file config (ip + \n + \0) -> (15 + 1 + 1)
+		data -> tab_ip[cntIp] = malloc((SIZE_IP + 2) * sizeof(char));
 		
 	OI_close(file);
 
@@ -109,12 +109,11 @@ char *initIP(char *ip)
 
 char * initNameFile(char* ip)
 {
-	char *nameFile = NULL;
 	char *extension = ".txt";
 
 	size_t size = strlen(ip) + strlen(extension) + 1;
 	
-	nameFile = malloc(size * sizeof(char));
+	char *nameFile = malloc(size * sizeof(char));
 	if( !nameFile ) 
 	{
 		printf("initNameFile: wrong alloc 'nameFile'\n");
@@ -129,12 +128,10 @@ char * initNameFile(char* ip)
 
 char * initrqst(char *ip)
 {
-	char *rqst  = NULL;
-	char *nameF = NULL;
 	char *param = "ping -c 4 ";
 	char *rdctF = " > ";
 
-	nameF =	initNameFile(ip);
+	char *nameF = initNameFile(ip);
 	if( !nameF ) 
 	{
 		printf("initrqst: wrong alloc 'nameF'\n");
@@ -143,7 +140,7 @@ char * initrqst(char *ip)
 
 	size_t size = strlen(ip) + strlen(rdctF) + strlen(nameF) + strlen(param) + 1;
 	
-	rqst = malloc(size * sizeof(char));
+	char *rqst = malloc(size * sizeof(char));
 	if( !rqst ) 
 	{
 		printf("initrqst: wrong alloc 'rqst'\n");
@@ -169,13 +166,9 @@ void * pingsParallel (void * arg)
 	at->ip 		 = initIP( at->rqst );
 	at->fullRqst = initrqst( at->ip );
 
-	printf("%s\n", at->fullRqst);
-
 	sysVal = system( at->fullRqst );
 	if(sysVal < 0)
 		printf("ERR : ping request fail\n");
-
-	printf("%ld request : %s\n", pthread_self(), at->fullRqst);
 
 	free(at->ip);
 	free(at->fullRqst);
@@ -218,9 +211,11 @@ void * printFile (void * arg)
 	at -> path = initNameFile(at -> ip);
 
 	pthread_mutex_lock(at -> mut);
+	
 	print(at -> path);
 	free(at -> ip);
 	free(at -> path);
+	
 	pthread_mutex_unlock(at -> mut);
 	
 	return NULL;
@@ -288,13 +283,14 @@ int main(int argc, char ** argv)
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 		printf("ip : %s", data.tab_ip[cnt]);
 
-	printf("\nPing rqst being processed... \n");
+	printf("\nPing request being processed... \n");
 
 	ThreadCheckIP(data);
 	ThreadPrintFile(data);
 	
 	for(int cnt = 0; cnt < data.nbr_ip; cnt++)
 		free(data.tab_ip[cnt]);
+	
 	free(data.tab_ip);
 
 	return 0;
