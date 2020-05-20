@@ -1,6 +1,5 @@
-//text file
 *.txt
+*.o
 
-//exe
 main
 
